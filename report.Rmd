@@ -1,0 +1,267 @@
+---
+title: "Two Pore Guys Dynamic Report"
+output: html_document
+params:
+  Events: df_Event
+  Model_file: my_model
+  
+  Experiment_Info: df_Data_Info
+  config: my_config
+    
+---
+
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+  font-size: 12px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 14px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+
+```{r, echo=FALSE, comment=NA}
+library(ggplot2)
+library(plotly)
+library(htmltools)
+library(plyr)
+
+# load data and model
+df <- params$Events
+df$dset_Exp_bind <- paste(df$setNum, df$Exp, sep = " - ")
+dset_Exp <- unique(df[,c("setNum","Exp")])
+model <- params$Model_file
+if (grepl("rpart", toString(model$call))) {
+  # predict_type <- "class"
+  class_choices <- attr(model, "ylevels")
+} else {
+# predict_type <- "raw"
+class_choices <- model$levels
+}
+if (grepl("rpart", toString(model$call))) {
+  predict_type <- "class"
+} else {
+predict_type <- "raw"
+}
+
+my_paras <- params$config
+```
+
+---
+
+
+<center><h1>Experiment Information</h1></center>
+```{r, echo=FALSE, comment=NA}
+Exp_Info <- params$Experiment_Info
+cat(paste("Project : ", Exp_Info$project, "\n", sep = ""))
+cat(paste("Goal : ", Exp_Info$goal, "\n", sep = ""))
+cat(paste("Date : ", Exp_Info$datetime, "\n", sep = ""))
+cat(paste("Experimenter : ", Exp_Info$user, "\n", sep = ""))
+cat(paste("Pore Number : ", Exp_Info$pore_number, "\n", sep = ""))
+cat(paste("Buffer : ", Exp_Info$buffer, "\n", sep = ""))
+cat(paste("conductivity : ", Exp_Info$conductivity, "\n", sep = ""))
+cat(paste("Pore thickness : ", Exp_Info$thickness, "\n", sep = ""))
+cat(paste("Sampling Rate : ", Exp_Info$sample_rate, "\n", sep = ""))
+```
+
+---
+
+
+<center><h2>Assay Information</h2></center>
+```{r, echo=FALSE, comment=NA}
+knitr::kable(Exp_Info$dsets[,c("index","assay","concentration","control_type","dilution_factor","is_dirty","voltage","pcr_cycle_number")]) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), position = "center")
+```
+
+---
+
+
+<center><h1>Model Information</h1></center>
+```{r, plotly=TRUE, echo=FALSE, comment=NA}
+x_para <- my_paras$Model_Info$X
+y_para <- my_paras$Model_Info$Y
+if(my_paras$Model_Info_Enable) {
+  cat(paste("Modeling Algorithm : ", my_paras$Model, "\n", sep = ""))
+  cat(paste("Modeling Parameters : ", paste(my_paras$Model_Para, collapse = ", "), "\n", sep = ""))
+  cat(paste("Modeling Controls sets: ", paste(my_paras$Model_dsets, collapse = ", "), "\n", sep = ""))
+  cat(paste("Target Molecule for Q-test : ", my_paras$Target_Molecule, "\n", sep = ""))
+  cat(paste("Calibrant Molecule for Q-test : ", my_paras$Calibrant_Molecule, "\n", sep = ""))
+  cat("Notes: \n")
+  cat(my_paras$Model_Info_Notes)
+  cat("\n")
+}
+```
+
+
+<center><h2>Scatter Plots for control datasets</h2></center>
+```{r, plotly=TRUE, echo=FALSE, message=FALSE}
+  df_selected <- df[df$setNum %in% my_paras$Model_dsets,]
+  p <- htmltools::tagList()
+  p[[1]] <- plot_ly(df_selected, x = df_selected[, x_para], y = df_selected[, y_para], mode = "markers", type = "scatter", color = factor(paste(df_selected$setNum, df_selected$Exp, sep = "-")), colors = "Set1") %>% 
+    layout(xaxis = list(title = x_para),yaxis = list(title = y_para),title = "Control samples")
+  p
+```
+
+
+---
+
+
+<center><h1>Scatter Plot(s)</h1></center>
+```{r, plotly=TRUE, echo=FALSE, comment=NA}
+if(my_paras$Scatter_Plot_Enable) {
+  cat(paste("Scatter Plots of samples :", paste(my_paras$Scatter_Plot_dsets, collapse = " , "), "\n", sep = " "))
+  cat("Notes: \n")
+  cat(my_paras$Scatter_Plot_Notes)
+}
+```
+
+
+```{r, plotly=TRUE, echo=FALSE, message=FALSE}
+if(my_paras$Scatter_Plot_Enable) {
+  df_selected <- df[df$dset_Exp_bind %in% my_paras$Scatter_Plot_dsets,]
+  p <- htmltools::tagList()
+  p[[1]] <- plot_ly(df_selected, x = df_selected[, x_para], y = df_selected[, y_para], mode = "markers", type = "scatter", color = factor(df_selected$dset_Exp_bind), colors = "Set1") %>% 
+    layout(xaxis = list(title = x_para),yaxis = list(title = y_para))
+  p
+}
+```
+
+
+---
+
+
+<center><h1>Model Prediction Plot(s)</h1></center>
+```{r, plotly=TRUE, echo=FALSE, comment=NA}
+if(my_paras$Model_Prediction_Plot_Enable) {
+  cat(paste("Model Prediction Plots of samples :", paste(my_paras$Model_Prediction_Plot_dsets, collapse = " , "), "\n", sep = " "))
+  cat("Notes: \n")
+  cat(my_paras$Model_Prediction_Plot_Notes)
+}
+```
+
+
+```{r, plotly=TRUE, echo=FALSE, message=FALSE}
+if(my_paras$Model_Prediction_Plot_Enable) {
+  dsets <- my_paras$Model_Prediction_Plot_dsets
+  l <- htmltools::tagList()
+  for(i in 1:length(dsets)) {
+    df_selected <- df[df$dset_Exp_bind == dsets[i],]
+    class_type <- predict(model, df_selected, type = predict_type)
+    l[[i]] <- plot_ly(df_selected, x = df_selected[, x_para], y = df_selected[, y_para], mode = "markers", type = "scatter", color = class_type, colors = "Set1") %>% 
+      layout(xaxis = list(title = x_para),yaxis = list(title = y_para),title = paste("dset:", dsets[i], sep = ""))
+  }
+  l
+}
+```
+
+
+---
+
+
+<center><h1>Q Plot(s)</h1></center>
+```{r, plotly=TRUE, echo=FALSE, comment=NA}
+if(my_paras$Q_Plot_Enable) {
+  cat(paste("Q Plots of samples :", paste(my_paras$Q_Plot_dsets, collapse = ", "), "\n", sep = " "))
+  cat(paste("Tareget Molecule : ", my_paras$Target_Molecule, "\n", sep = ""))
+  cat(paste("Calibrant Molecule : ", my_paras$Calibrant_Molecule, "\n", sep = ""))
+  cat("Notes: \n")
+  cat(my_paras$Q_Plot_Notes)
+}
+```
+
+
+```{r, plotly=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+if(my_paras$Q_Plot_Enable) {
+  dsets <- my_paras$Q_Plot_dsets
+  l <- htmltools::tagList()
+  
+  #Calculate Q-values and error for each dset
+  target_molecule <- my_paras$Target_Molecule
+  calibrant_molecule <- my_paras$Calibrant_Molecule
+  set_list <- dsets
+    
+  Q_df <- data.frame('index' = as.integer(), 'q_value' = as.double(), 'q_error' = as.double(), 'd_set' = as.integer())
+    
+  for (sub_set in set_list) {
+      df_selected_subset <- df[df$dset_Exp_bind == sub_set,]
+      class_type_subset <- predict(model, df_selected_subset, type = predict_type)
+      q_value <- vector(length = length(class_type_subset), mode = "double")
+      q_error <- vector(length = length(class_type_subset), mode = "double")
+      
+      num_target <- 0
+      num_all <- 0
+      for (i in 1:length(class_type_subset)) {
+        if(i == 1) {
+          q_value[1] <- as.integer(class_type_subset[1] == target_molecule)
+          q_error[i] <- 0
+          num_target <- as.integer(class_type_subset[1] == target_molecule)
+          num_all <- as.integer(class_type_subset[1] == target_molecule | class_type_subset[1] == calibrant_molecule)
+          if(num_all == 0) {
+            q_value[i] <- 0
+            q_error[i] <- 0
+          }
+          else {
+            q_value[i] <- num_target/num_all
+            q_error[i] <- 1.96*sqrt(q_value[i]*(1-q_value[i])/num_all)
+          }
+        } 
+        else {
+          num_target <- num_target + as.integer(class_type_subset[i] == target_molecule)
+          num_all <- num_all + as.integer(class_type_subset[i] == target_molecule | class_type_subset[i] == calibrant_molecule)
+          if(num_all == 0) {
+            q_value[i] <- 0
+            q_error[i] <- 0
+          }
+          else {
+            q_value[i] <- num_target/num_all
+            q_error[i] <- 1.96*sqrt(q_value[i]*(1-q_value[i])/num_all)
+          }
+        }
+      }
+      Q_df <- rbind(Q_df,data.frame('index' = 1:length(class_type_subset), 
+                                    'q_value' = q_value, 
+                                    'q_error' = q_error, 
+                                    'd_set' = as.vector(rep(sub_set, length(class_type_subset)))))
+    }
+  # End of calculation
+  l[[1]] <- plot_ly(data = Q_df, x = Q_df$index, y = 100*(Q_df$q_value), type = 'scatter', mode='lines', color = Q_df$d_set) %>% add_ribbons(ymin = 100*(Q_df$q_value - Q_df$q_error), ymax = 100*(Q_df$q_value + Q_df$q_error)) %>%
+     layout(xaxis = list(title = "Number of events"),yaxis = list(title = "Percentage(%)"), title = "Q-Plots")
+  l
+}
+```
+
+---
+
+
+<center><h2>Q Values</h2></center>
+```{r, echo=FALSE, comment=NA}
+Q_df_split <- ddply(Q_df, .(d_set), function(x) x[nrow(x),c('d_set', 'q_value','q_error')])
+Q_df_split$q_value <- Q_df_split$q_value*100
+Q_df_split$q_error <- Q_df_split$q_error*100
+knitr::kable(Q_df_split) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), position = "center")
+```
